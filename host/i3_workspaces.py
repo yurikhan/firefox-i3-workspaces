@@ -128,6 +128,7 @@ class I3Thread(Thread):
         """
         self._inhibit_move += 1
         i3 = Connection()
+        time.sleep(0.1)
         tree = i3.get_tree()
         response_payload: dict[UUID, Workspace] = {}
         for uuid, workspace in windows.items():
