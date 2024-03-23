@@ -4,6 +4,12 @@
 
 /// @type {browser.runtime.Port}
 let host = browser.runtime.connectNative('i3_workspaces');
+function handleHostDisconnected(p) {
+  console.error(`native host disconnected: ${p.error?.message}`)
+  host = browser.runtime.connectNative('i3_workspaces');
+  host.onDisconnect.addListener(handleHostDisconnected);
+}
+host.onDisconnect.addListener(handleHostDisconnected);
 
 /// @type {Map<UUID, WindowID>}
 let windowMap = new Map();

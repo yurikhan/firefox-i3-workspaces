@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "i3-workspaces",
-  "version": "0.9",
+  "version": "0.10",
   "description": "Restore Firefox windows to correct i3 workspaces.",
   "homepage_url": "https://github.com/yurikhan/firefox-i3-workspaces/",
   "icons": {
