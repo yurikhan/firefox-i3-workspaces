@@ -49,7 +49,7 @@ class ReceiverThread(Thread):
     """
 
     def __init__(self, q: SimpleQueue) -> None:
-        super().__init__(daemon=True)
+        super().__init__(daemon=True, name='receiver')
         self._breaker_w, self._breaker_r = os.pipe()
         self._q = q
 
@@ -71,9 +71,11 @@ class ReceiverThread(Thread):
         """
         readable, _, _ = select.select([sys.stdin, self._breaker_r], [], [])
         if self._breaker_r in readable:
+            logging.info('normal shutdown')
             return SHUTDOWN
         raw_length = sys.stdin.buffer.read(4)
         if len(raw_length) == 0:
+            logging.warning('cannot read message length, shutting down')
             return SHUTDOWN
         [message_length] = struct.unpack('@I', raw_length)
         message = sys.stdin.buffer.read(message_length).decode('utf-8')
@@ -89,9 +91,10 @@ class ReceiverThread(Thread):
                 if isinstance(received_message, Shutdown):
                     self._q.put(SHUTDOWN)
                     return
+                logging.info('→ %s', received_message)
                 self._q.put(Request(received_message))
         except Exception:
-            logging.exception()
+            logging.exception('exception')
 
 
 class I3Thread(Thread):
@@ -100,7 +103,7 @@ class I3Thread(Thread):
     """
 
     def __init__(self, q: SimpleQueue) -> None:
-        super().__init__(daemon=True)
+        super().__init__(daemon=True, name='i3')
         self._i3: Connection | None = None
         self._q = q
         self._stopping = False
@@ -130,7 +133,10 @@ class I3Thread(Thread):
         for uuid, workspace in windows.items():
             cons = tree.find_titled(fr'^{re.escape(uuid)} \|')
             if not cons:
+                logging.error('%s not found', uuid)
                 continue
+            if len(cons) > 1:
+                logging.warning('%s found more than once', uuid)
 
             self._windows[cons[0].window] = uuid
 
@@ -177,23 +183,25 @@ class I3Thread(Thread):
                 except FileNotFoundError:
                     time.sleep(0.1)
                     continue
+                logging.info('connected')
 
                 self._workspaces = {ws.id: ws.name for ws in self._i3.get_tree().workspaces()}
                 self._i3.on(Event.WINDOW_MOVE, self.window_move)
                 self._i3.on(Event.WORKSPACE_RENAME, self.workspace_renamed)
                 self._i3.main()
+                logging.info('disconnected')
                 self._i3 = None
                 if self._stopping:
                     return
         except Exception:
-            logging.exception()
+            logging.exception('exception')
 
 
 def send_message(message_content: JsonValue) -> None:
     """
     Encode and send a message to stdout.
     """
-    logging.info(message_content)
+    logging.info('← %s', message_content)
     encoded_content = json.dumps(message_content, separators=(',', ':')).encode('utf-8')
     encoded_length = struct.pack('@I', len(encoded_content))
     sys.stdout.buffer.write(encoded_length)
@@ -202,8 +210,11 @@ def send_message(message_content: JsonValue) -> None:
 
 
 def main():
-    # logging.basicConfig(filename='/tmp/i3_workspaces.log', level=logging.DEBUG)
-    logging.basicConfig(handlers=[], level=logging.ERROR)
+    logging.basicConfig(
+        filename='/tmp/i3_workspaces.log',
+        level=logging.DEBUG,
+        format='%(levelname)-8s %(asctime)s [%(threadName)s] %(message)s')
+    # logging.basicConfig(handlers=[], level=logging.ERROR)
     try:
         q = SimpleQueue()
 
@@ -217,6 +228,7 @@ def main():
             while True:
                 message = q.get()
                 if message is SHUTDOWN:
+                    logging.info('shutting down')
                     break
                 if isinstance(message, Notification):
                     send_message(message.body)
@@ -228,8 +240,8 @@ def main():
             receiver.stop()
             i3thread.stop()
 
-    except Exception:
-        logging.exception('main: exception')
+    except BaseException:
+        logging.exception('exception')
 
 
 if __name__ == '__main__':
