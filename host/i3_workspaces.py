@@ -155,10 +155,13 @@ class I3Thread(Thread):
         When a window is moved, tell the addon which and where.
         """
         if self._inhibit_move:
-            return
+            return  # handle_windows is moving things around
 
         window = e.container.window
-        uuid = self._windows[window]
+        uuid = self._windows.get(window)
+        if uuid is None:
+            return  # not a window we’re tracking
+
         workspace = Connection().get_tree().find_by_window(window).workspace().name
         self._q.put(Notification({'window::move': {uuid: workspace}}))
 
