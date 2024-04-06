@@ -9,8 +9,11 @@ I want to rely on each window staying on the workspace I move it to,
 including across Firefox and PC restarts.
 
 The code in Firefox that is supposed to restore windows
-does not work on i3 and is specifically disabled if i3 is detected,
+does not work on i3
+and is [specifically disabled][disabled] if i3 is detected,
 due to the way i3 implements the relevant X window hints.
+
+[disabled]: https://searchfox.org/mozilla-central/rev/48eb17ba6bb3ce3198ee136785487c26cb64a025/widget/gtk/nsWindow.cpp#2854
 
 Thus, when Firefox restarts, it dumps all my windows on the workspace
 that is active at the time.
