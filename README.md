@@ -44,7 +44,9 @@ and move each window to its workspace after session restore.
    (On Linux, it must be an absolute path.)
 4. Install the add-on,
    either from the Releases section on GitHub
-   or from addons.mozilla.org.
+   or [from addons.mozilla.org][amo].
+
+[amo]: https://addons.mozilla.org/en-US/firefox/addon/i3-workspaces/
 
 ----
 
