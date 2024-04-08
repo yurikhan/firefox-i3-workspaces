@@ -51,6 +51,8 @@ and move each window to its workspace after session restore.
 
 [amo]: https://addons.mozilla.org/en-US/firefox/addon/i3-workspaces/
 
+[For Gentoo you can emerge from Guru](https://github.com/gentoo/guru/tree/master/x11-wm/firefox-i3-workspaces).
+
 ----
 
 ## Theory of operation
