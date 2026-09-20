@@ -1,9 +1,9 @@
-# Restore Firefox windows to correct i3 workspaces
+# Restore Firefox windows to correct i3 or Sway workspaces
 
 ## Problem statement
 
 I use Firefox with multiple windows,
-distributed over several i3 workspaces.
+distributed over several Sway (or i3) workspaces.
 I have Firefox set up to restore windows and tabs of the last session.
 I want to rely on each window staying on the workspace I move it to,
 including across Firefox and PC restarts.
@@ -14,6 +14,13 @@ and is [specifically disabled][disabled] if i3 is detected,
 due to the way i3 implements the relevant X window hints.
 
 [disabled]: https://searchfox.org/mozilla-central/rev/48eb17ba6bb3ce3198ee136785487c26cb64a025/widget/gtk/nsWindow.cpp#2854
+
+**Note:** in the rest of this README,
+i3 is used to mean both i3 and Sway.
+Sway differences are called out specifically.
+
+**Sway:** Firefox attempts to use the `xdg_session_manager_v1` Wayland protocol.
+Sway does not implement that.
 
 Thus, when Firefox restarts, it dumps all my windows on the workspace
 that is active at the time.
@@ -27,7 +34,7 @@ and move each window to its workspace after session restore.
 ## Installation
 
 0. Install the dependencies.
-   The host app needs Python 3.10 and the `i3ipc` library
+   The host app needs Python ≥ 3.10 and the `i3ipc` library
    which can be installed on Debian derivatives
    with `sudo apt install python3-i3ipc`.
    For other distributions, check your package manager,
@@ -51,7 +58,8 @@ and move each window to its workspace after session restore.
 
 [amo]: https://addons.mozilla.org/en-US/firefox/addon/i3-workspaces/
 
-[@vitaly-zdanevich](https://github.com/vitaly-zdanevich) maintains a Gentoo package in Guru: [x11-wm/firefox-i3-workspaces](https://github.com/gentoo/guru/tree/master/x11-wm/firefox-i3-workspaces)
+[@vitaly-zdanevich](https://github.com/vitaly-zdanevich) maintains a Gentoo package in Guru:
+[x11-wm/firefox-i3-workspaces](https://github.com/gentoo/guru/tree/master/x11-wm/firefox-i3-workspaces)
 
 ----
 
@@ -98,10 +106,13 @@ An i3 IPC connection dies if i3 is restarted.
 When that happens, the host app reconnects
 and resubscribes to events it tracks.
 
+**Sway:** as of 2026-09, does not support restart in place
+without terminating the clients.
+
 #### Window placement
 
 At startup and on any new window creation,
-the addon modifies each window’s title,
+the addon temporarily modifies each window’s title,
 using `windows.update` with the `titlePreface` property,
 to contain the window UUID,
 and sends the host app a message
@@ -119,6 +130,13 @@ finds each window in the addon’s request by the UUID in its title,
 and correlates X window IDs to UUIDs.
 X window IDs are stable within an X session
 and survive i3 restarts.
+
+**Sway:** X window IDs are only available on Xwayland windows.
+For native Wayland windows, we use container IDs.
+These are also stable within a session
+and we don’t have to care about Sway restarts
+because those terminate Firefox and the host app.
+
 If a workspace name is passed by the addon,
 the host app moves the window to that workspace.
 It sends the name of the workspace each window ended up on

@@ -10,15 +10,15 @@ import struct
 import sys
 import time
 from threading import Thread
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
-from i3ipc import Connection, Event, WindowEvent, WorkspaceEvent  # type: ignore
+from i3ipc import Con, Connection, Event, WindowEvent, WorkspaceEvent  # type: ignore
 
 
 ConID = int
 JsonValue = None | bool | int | float | str | list | dict[str, Any]
 UUID = str
-WindowID = int
+WindowKey = tuple[Literal['window', 'id'], int]
 Workspace = str
 
 
@@ -107,7 +107,7 @@ class I3Thread(Thread):
         self._i3: Connection | None = None
         self._q = q
         self._stopping = False
-        self._windows: dict[WindowID, UUID] = {}
+        self._windows: dict[WindowKey, UUID] = {}
         self._workspaces: dict[ConID, Workspace] = {}
         self._inhibit_move = 0
 
@@ -119,6 +119,22 @@ class I3Thread(Thread):
         if self._i3:
             self._i3.main_quit()
         self.join()
+
+    @staticmethod
+    def _window_key(con: Con) -> WindowKey:
+        """
+        Return a key identifying the client window inside con.
+
+        Prefer the X11 window id:
+        it outlives an i3 restart, unlike the container id,
+        while the client it belongs to is still running.
+        Native Wayland windows have no X11 id,
+        so fall back to the container id;
+        killing the compositor kills its clients too.
+        """
+        if con.window is not None:
+            return ('window', con.window)
+        return ('id', con.id)
 
     def handle_windows(self, windows: dict[UUID, Workspace | None]) -> Notification:
         """
@@ -132,14 +148,14 @@ class I3Thread(Thread):
         tree = i3.get_tree()
         response_payload: dict[UUID, Workspace] = {}
         for uuid, workspace in windows.items():
-            cons = tree.find_titled(fr'^{re.escape(uuid)} \|')
+            cons = tree.find_named(fr'^{re.escape(uuid)} \|')
             if not cons:
                 logging.error('%s not found', uuid)
                 continue
             if len(cons) > 1:
                 logging.warning('%s found more than once', uuid)
 
-            self._windows[cons[0].window] = uuid
+            self._windows[self._window_key(cons[0])] = uuid
 
             if workspace is not None:
                 cons[0].command(f'move --no-auto-back-and-forth container to workspace "{workspace}"')
@@ -157,13 +173,18 @@ class I3Thread(Thread):
         if self._inhibit_move:
             return  # handle_windows is moving things around
 
-        window = e.container.window
-        uuid = self._windows.get(window)
+        uuid = self._windows.get(self._window_key(e.container))
         if uuid is None:
             return  # not a window we’re tracking
 
-        workspace = Connection().get_tree().find_by_window(window).workspace().name
-        self._q.put(Notification({'window::move': {uuid: workspace}}))
+        # Event containers have no parent links,
+        # so resolve the workspace from the tree.
+        # This runs on the same connection as the event,
+        # so the container id comes from the same tree generation.
+        con = i3.get_tree().find_by_id(e.container.id)
+        if con is None:
+            return
+        self._q.put(Notification({'window::move': {uuid: con.workspace().name}}))
 
     def workspace_renamed(self, i3: Connection, e: WorkspaceEvent) -> None:
         """
